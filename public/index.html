@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Competitor Analysis Dashboard</title>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      padding: 20px; 
+      background-color: #f5f5f5;
+      margin: 0;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #2c3e50;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      text-align: center;
+      color: #7f8c8d;
+      margin-bottom: 30px;
+    }
+    textarea { 
+      width: 100%; 
+      height: 120px; 
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      padding: 15px;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    button { 
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 12px 30px; 
+      margin-top: 15px; 
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    button:disabled {
+      background-color: #bdc3c7;
+      cursor: not-allowed;
+    }
+    #response { 
+      margin-top: 25px; 
+      white-space: pre-wrap; 
+      background-color: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #3498db;
+      min-height: 50px;
+      font-family: 'Courier New', monospace;
+      line-height: 1.6;
+    }
+    .loading {
+      color: #3498db;
+      font-style: italic;
+    }
+    .examples {
+      background-color: #e8f6f3;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .examples h3 {
+      margin-top: 0;
+      color: #27ae60;
+    }
+    .example-query {
+      background-color: white;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid #ddd;
+      transition: background-color 0.2s;
+    }
+    .example-query:hover {
+      background-color: #f1f2f6;
+    }
+    .dataset-info {
+      background-color: #fff3cd;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 4px solid #ffc107;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚗 Car Rental Competitor Analysis Dashboard</h1>
+    <p class="subtitle">AI-Powered Insights for Saudi Arabia Car Rental Market</p>
+    
+    <div class="dataset-info">
+      <strong>Dataset Overview:</strong> 12,575 records covering car rental pricing across Saudi Arabia
+      <br><strong>Entities:</strong> Budget Saudi, Key, Yelo, Sixt, Hanco, Lumi
+      <br><strong>Coverage:</strong> Multiple cities, vehicle categories, and rental durations
+    </div>
+
+    <div class="examples">
+      <h3>📊 Sample Questions You Can Ask:</h3>
+      <div class="example-query" onclick="fillQuestion(this)">Which competitor has the lowest average prices for Toyota Yaris?</div>
+      <div class="example-query" onclick="fillQuestion(this)">Compare pricing between Riyadh and Jeddah for economy cars</div>
+      <div class="example-query" onclick="fillQuestion(this)">What are the most expensive car models by group in the dataset?</div>
+      <div class="example-query" onclick="fillQuestion(this)">Show me rental price trends by duration (1 day vs 7 days vs 30 days)</div>
+      <div class="example-query" onclick="fillQuestion(this)">Which locations have the highest price variation across competitors?</div>
+      <div class="example-query" onclick="fillQuestion(this)">Analyze airport vs downtown pricing differences</div>
+    </div>
+
+    <textarea id="question" placeholder="Ask your question about car rental competitor analysis...
+
+Examples:
+- Compare Budget Saudi vs Sixt pricing for SUVs
+- Which city has the most competitive pricing?
+- Show pricing analysis for group F vehicles
+- What's the average price difference between 1-day and 30-day rentals?"></textarea>
+    <br>
+    <button onclick="askGPT()">🔍 Analyze Data</button>
+    <div id="response">AI analysis will appear here...</div>
+  </div>
+
+  <script>
+    let competitorData = [];
+
+    async function loadCompetitorData() {
+      try {
+        const response = await fetch('competitor_analysis.json');
+        competitorData = await response.json();
+        console.log('Loaded competitor data:', competitorData.length, 'records');
+      } catch (error) {
+        console.error('Error loading competitor data:', error);
+        document.getElementById('response').innerHTML = 
+          '<span style="color: red;">Error: Could not load competitor_analysis.json file. Please ensure the file is in the public folder.</span>';
+      }
+    }
+
+    function fillQuestion(element) {
+      document.getElementById('question').value = element.textContent;
+    }
+
+    async function askGPT() {
+      const questionElement = document.getElementById('question');
+      const responseElement = document.getElementById('response');
+      const button = document.querySelector('button');
+      
+      const question = questionElement.value.trim();
+      
+      if (!question || question.length < 5) {
+        responseElement.innerHTML = '<span style="color: red;">Please enter a more detailed question.</span>';
+        return;
+      }
+
+      if (competitorData.length === 0) {
+        responseElement.innerHTML = '<span style="color: red;">Competitor data not loaded. Please refresh the page.</span>';
+        return;
+      }
+
+      // Disable button and show loading
+      button.disabled = true;
+      button.textContent = '🔄 Analyzing...';
+      responseElement.innerHTML = '<span class="loading">🤖 AI is analyzing the competitor data...</span>';
+
+      // Prepare data summary for the AI
+      const dataSummary = {
+        total_records: competitorData.length,
+        entities: [...new Set(competitorData.map(r => r.entity))],
+        sample_locations: [...new Set(competitorData.map(r => r['branch location']))].slice(0, 10),
+        vehicle_groups: [...new Set(competitorData.map(r => r.group))],
+        rental_durations: [...new Set(competitorData.map(r => r.rental_duration_days))].sort((a,b) => a-b),
+        sample_models: [...new Set(competitorData.map(r => r.model))].slice(0, 15),
+        price_range: {
+          min: Math.min(...competitorData.map(r => r.price_SAR)),
+          max: Math.max(...competitorData.map(r => r.price_SAR)),
+          avg: (competitorData.reduce((sum, r) => sum + r.price_SAR, 0) / competitorData.length).toFixed(2)
+        }
+      };
+
+      // Create comprehensive prompt
+      let prompt = `You are a car rental industry analyst for the Saudi Arabia market. Analyze this competitor dataset and answer the user's question with specific insights, numbers, and actionable recommendations.
+
+DATASET OVERVIEW:
+- Total Records: ${dataSummary.total_records}
+- Competitors: ${dataSummary.entities.join(', ')}
+- Vehicle Groups: ${dataSummary.vehicle_groups.join(', ')}
+- Rental Durations: ${dataSummary.rental_durations.join(', ')} days
+- Price Range: ${dataSummary.price_range.min} - ${dataSummary.price_range.max} SAR (avg: ${dataSummary.price_range.avg} SAR)
+- Sample Locations: ${dataSummary.sample_locations.join(', ')}
+- Sample Models: ${dataSummary.sample_models.join(', ')}
+
+SAMPLE DATA (first 5 records):
+${JSON.stringify(competitorData.slice(0, 5), null, 2)}
+
+USER QUESTION: ${question}
+
+Please provide:
+1. Direct answer with specific numbers/percentages
+2. Key insights and patterns
+3. Competitive positioning analysis
+4. Business recommendations
+5. Use bullet points and clear formatting for readability`;
+
+      try {
+        const response = await fetch("http://localhost:8080/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
+
+        const result = await response.json().catch(() => ({ 
+          error: "Invalid JSON response from server" 
+        }));
+
+        if (result.response) {
+          responseElement.innerHTML = `<strong>🎯 Analysis Results:</strong>\n\n${result.response}`;
+        } else {
+          responseElement.innerHTML = `<span style="color: red;">❌ Error: ${result.error || "No response received"}</span>`;
+        }
+
+      } catch (error) {
+        console.error('Request failed:', error);
+        responseElement.innerHTML = `<span style="color: red;">❌ Connection Error: ${error.message}</span>`;
+      } finally {
+        // Re-enable button
+        button.disabled = false;
+        button.textContent = '🔍 Analyze Data';
+      }
+    }
+
+    // Load data when page loads
+    loadCompetitorData();
+  </script>
+</body>
+</html>
