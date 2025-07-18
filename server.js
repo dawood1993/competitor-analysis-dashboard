@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -9,7 +10,7 @@ const port = process.env.PORT || 8080;
 
 // Your OpenAI Key
 const openai = new OpenAI({
-  apiKey: "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",
+  apiKey: process.env.OPENAI_API_KEY,
   baseURL: "https://openrouter.ai/api/v1"
 });
 
