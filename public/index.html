@@ -29,7 +29,7 @@
     }
     textarea { 
       width: 100%; 
-      height: 120px; 
+      height: 200px; 
       border: 2px solid #ddd;
       border-radius: 8px;
       padding: 15px;
@@ -43,6 +43,7 @@
       border: none;
       padding: 12px 30px; 
       margin-top: 15px; 
+      margin-right: 10px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 16px;
@@ -66,31 +67,13 @@
       font-family: 'Courier New', monospace;
       line-height: 1.6;
     }
+    #response strong {
+      font-weight: bold;
+      color: #2c3e50;
+    }
     .loading {
       color: #3498db;
       font-style: italic;
-    }
-    .examples {
-      background-color: #e8f6f3;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .examples h3 {
-      margin-top: 0;
-      color: #27ae60;
-    }
-    .example-query {
-      background-color: white;
-      padding: 10px;
-      margin: 8px 0;
-      border-radius: 4px;
-      cursor: pointer;
-      border: 1px solid #ddd;
-      transition: background-color 0.2s;
-    }
-    .example-query:hover {
-      background-color: #f1f2f6;
     }
     .dataset-info {
       background-color: #fff3cd;
@@ -107,6 +90,11 @@
       margin-bottom: 15px;
       border-left: 4px solid #28a745;
     }
+    .button-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
   </style>
 </head>
 <body>
@@ -118,37 +106,58 @@
       📊 Loading competitor data...
     </div>
 
-    <div class="examples">
-      <h3>📊 Sample Questions You Can Ask:</h3>
-      <div class="example-query" onclick="fillQuestion(this)">Which Entity has the lowest average prices for vehicle (eg. Toyota Hiace Passenger Van)?</div>
-      <div class="example-query" onclick="fillQuestion(this)">Which entity dominates each vehicle group (e.g., economy, SUV, luxury) in terms of pricing advantage</div>
-      <div class="example-query" onclick="fillQuestion(this)">Who is the expensive rental company in each major city based on price competitiveness?</div>
-      <div class="example-query" onclick="fillQuestion(this)">Analyze Downtown vs other location_type pricing differences</div>
-      <div class="example-query" onclick="fillQuestion(this)">What are the key drivers behind price differences? How does pricing vary by branch location, vehicle group, and vehicle make/model?</div>
-    </div>
-
     <textarea id="question" placeholder="Ask your question about car rental competitor analysis...
 
 Examples:
-- Compare Lumi vs other entities pricing for Passenger Vehicles
-- Which branch location has the most competitive pricing?
-- Show pricing analysis for different Vehicle_Groups
-- What's the average price difference between different rental_duration_days?"></textarea>
+- Which Entity has the lowest average prices for vehicle (eg. Toyota Hiace Passenger Van)?
+- Which entity dominates each vehicle group (e.g., economy, SUV, luxury) in terms of pricing advantage?
+- Who is the expensive rental company in each major city based on price competitiveness?
+- Analyze Downtown vs other location_type pricing differences
+- What are the key drivers behind price differences? How does pricing vary by branch location, vehicle group, and vehicle make/model?"></textarea>
     <br>
-    <button onclick="askGPT()">🔍 Analyze Data</button>
+    
+    <div class="button-group">
+      <button onclick="askGPT()">🔍 Analyze Data</button>
+    </div>
+    
     <div id="response">AI analysis will appear here...</div>
   </div>
 
   <script>
     let competitorData = [];
+    let competitorCSV = '';
     let dataSummary = {};
+    let lastGeneratedPrompt = '';
 
     async function loadCompetitorData() {
       try {
-        const response = await fetch('competitor_analysis.json');
-        competitorData = await response.json();
+        // Load as CSV text instead of JSON
+        const response = await fetch('competitor_analysis.csv');
+        competitorCSV = await response.text();
         
-        // Generate comprehensive data summary
+        // Parse for summary statistics only
+        const lines = competitorCSV.split('\n').filter(line => line.trim());
+        const headers = lines[0].split(',');
+        const dataRows = lines.slice(1);
+        
+        // Parse minimal data for summary
+        competitorData = dataRows.map(row => {
+          const values = row.split(',');
+          const record = {};
+          headers.forEach((header, index) => {
+            record[header.trim()] = values[index]?.trim();
+          });
+          // Convert price to number for calculations
+          if (record.price_SAR) {
+            record.price_SAR = parseFloat(record.price_SAR);
+          }
+          if (record.rental_duration_days) {
+            record.rental_duration_days = parseInt(record.rental_duration_days);
+          }
+          return record;
+        });
+        
+        // Generate summary without full data
         dataSummary = {
           total_records: competitorData.length,
           entities: [...new Set(competitorData.map(r => r.Entity))],
@@ -168,17 +177,17 @@ Examples:
         document.getElementById('dataStatus').innerHTML = 
           `✅ Dataset loaded successfully: ${dataSummary.total_records} records covering ${dataSummary.entities.length} entities across ${dataSummary.branch_locations.length} locations`;
         
-        console.log('Loaded competitor data:', competitorData.length, 'records');
-        console.log('Data summary:', dataSummary);
+        console.log('Loaded competitor CSV data:', dataSummary.total_records, 'records');
+        console.log('CSV size:', competitorCSV.length, 'characters');
       } catch (error) {
         console.error('Error loading competitor data:', error);
         document.getElementById('dataStatus').innerHTML = 
-          '<span style="color: red;">❌ Error: Could not load competitor_analysis.json file. Please ensure the file is in the public folder.</span>';
+          '<span style="color: red;">❌ Error: Could not load competitor_analysis.csv file. Please ensure the file is in the public folder.</span>';
       }
     }
 
-    function fillQuestion(element) {
-      document.getElementById('question').value = element.textContent;
+    function generatePrompt(question) {
+      return `${question}`;
     }
 
     async function askGPT() {
@@ -193,7 +202,7 @@ Examples:
         return;
       }
 
-      if (competitorData.length === 0) {
+      if (!competitorCSV || competitorCSV.length === 0) {
         responseElement.innerHTML = '<span style="color: red;">Competitor data not loaded. Please refresh the page.</span>';
         return;
       }
@@ -203,41 +212,22 @@ Examples:
       button.textContent = '🔄 Analyzing...';
       responseElement.innerHTML = '<span class="loading">🤖 AI is analyzing the complete competitor dataset...</span>';
 
-      // Create comprehensive prompt with FULL dataset
-      let prompt = `You are a car rental industry analyst for the Saudi Arabia market. My Entity is Lumi. Analyze this competitor dataset and answer the user's question with specific insights, numbers, and actionable recommendations.
+      // Generate the prompt
+      const prompt = generatePrompt(question);
+      lastGeneratedPrompt = prompt;
 
-DATASET OVERVIEW:
-- Total Records: ${dataSummary.total_records}
-- Entities: ${dataSummary.entities.join(', ')}
-- Vehicle Groups: ${dataSummary.vehicle_groups.join(', ')}
-- Rental Durations: ${dataSummary.rental_durations.join(', ')} days
-- Location Types: ${dataSummary.location_types.join(', ')}
-- Price Range: ${dataSummary.price_range.min} - ${dataSummary.price_range.max} SAR (avg: ${dataSummary.price_range.avg} SAR)
-- Total Branch Locations: ${dataSummary.branch_locations.length}
-- Total Vehicle Models: ${dataSummary.vehicle_models.length}
+      const promptSize = prompt.length;
+      const estimatedTokens = Math.ceil(promptSize / 3.5); // Rough estimate: 1 token ≈ 3.5 characters
+      
+      console.log(`Sending CSV dataset with ${dataSummary.total_records} records to AI`);
+      console.log(`Prompt size: ${promptSize} characters (~${estimatedTokens} tokens)`);
 
-COLUMN STRUCTURE:
-- Entity: Company name (e.g., lumi, theeb, budget saudi)
-- branch location: Specific branch location (e.g., Jizan city Branch)
-- rental_duration_days: Number of rental days
-- location_type: Type of location (e.g., Downtown)
-- Vehicle_Make_Model: Vehicle make and model (e.g., TOYOTA Hiace Passenger Van)
-- Vehicle_Group: Category of vehicle (e.g., Passenger Vehicles, Electric)
-- price_SAR: Rental price in Saudi Riyals
-
-COMPLETE DATASET (ALL ${dataSummary.total_records} RECORDS):
-${JSON.stringify(competitorData, null, 2)}
-
-USER QUESTION: ${question}
-
-Please provide:
-1. Direct answer with specific numbers/percentages calculated from the complete dataset
-2. Key insights and patterns identified across all records
-3. Competitive positioning analysis for Lumi vs competitors
-4. Business recommendations based on comprehensive data analysis
-5. Use bullet points and clear formatting for readability
-
-Important: Base your analysis on the COMPLETE dataset above, not just samples. Provide accurate calculations and insights.`;
+      if (estimatedTokens > 800000) { // Conservative limit
+        responseElement.innerHTML = `<span style="color: orange;">⚠️ Warning: Dataset may be too large (${estimatedTokens} estimated tokens). Consider using a smaller subset or different analysis approach.</span>`;
+        button.disabled = false;
+        button.textContent = '🔍 Analyze Data';
+        return;
+      }
 
       try {
         const response = await fetch("http://localhost:8080/ask", {
@@ -251,19 +241,42 @@ Important: Base your analysis on the COMPLETE dataset above, not just samples. P
         }));
 
         if (result.response) {
-          responseElement.innerHTML = `<strong>🎯 Analysis Results (Based on ${dataSummary.total_records} records):</strong>\n\n${result.response}`;
+          const formattedResponse = formatAIResponse(result.response);
+          responseElement.innerHTML = `<strong>🎯 Complete Analysis Results (Based on ALL ${dataSummary.total_records} records):</strong>\n\n${formattedResponse}`;
         } else {
           responseElement.innerHTML = `<span style="color: red;">❌ Error: ${result.error || "No response received"}</span>`;
         }
 
       } catch (error) {
         console.error('Request failed:', error);
-        responseElement.innerHTML = `<span style="color: red;">❌ Connection Error: ${error.message}</span>`;
+        responseElement.innerHTML = `<span style="color: red;">❌ Connection Error: ${error.message}\n\nThis might be due to token limits. Consider breaking down your analysis into smaller segments.</span>`;
       } finally {
         // Re-enable button
         button.disabled = false;
         button.textContent = '🔍 Analyze Data';
       }
+    }
+
+    function formatAIResponse(text) {
+      // Handle all markdown-style formatting while preserving line breaks
+      return text
+        // Convert **text** to <strong>text</strong>
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Convert ### Headers to styled headers
+        .replace(/^### (.+)$/gm, '<span style="font-weight: bold; font-size: 1.1em; color: #2c3e50; display: block; margin: 15px 0 8px 0;">$1</span>')
+        // Convert ## Headers to styled headers
+        .replace(/^## (.+)$/gm, '<span style="font-weight: bold; font-size: 1.2em; color: #2c3e50; display: block; margin: 15px 0 8px 0;">$1</span>')
+        // Convert # Headers to styled headers
+        .replace(/^# (.+)$/gm, '<span style="font-weight: bold; font-size: 1.3em; color: #2c3e50; display: block; margin: 15px 0 10px 0;">$1</span>')
+        // Convert --- horizontal rules to styled dividers
+        .replace(/^---$/gm, '<div style="border-top: 2px solid #ddd; margin: 15px 0;"></div>')
+        // Convert bullet points starting with - to styled bullets
+        .replace(/^- (.+)$/gm, '• $1')
+        // Convert numbered lists
+        .replace(/^\d+\. (.+)$/gm, function(match, p1, offset, string) {
+          const lineNumber = (string.substring(0, offset).match(/^\d+\. /gm) || []).length + 1;
+          return lineNumber + '. ' + p1;
+        });
     }
 
     // Load data when page loads
