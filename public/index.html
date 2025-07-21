@@ -99,6 +99,14 @@
       margin-bottom: 20px;
       border-left: 4px solid #ffc107;
     }
+    .data-status {
+      background-color: #d4edda;
+      color: #155724;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      border-left: 4px solid #28a745;
+    }
   </style>
 </head>
 <body>
@@ -106,10 +114,8 @@
     <h1>🚗 Car Rental Competitor Analysis Dashboard</h1>
     <p class="subtitle">AI-Powered Insights for Saudi Arabia Car Rental Market</p>
     
-    <div class="dataset-info">
-      <strong>Dataset Overview:</strong> 30,367 records covering car rental pricing across Saudi Arabia
-      <br><strong>Entities:</strong> Lumi, Theeb, Budget Saudi, Key, Yelo, Sixt, Hanco
-      <br><strong>Coverage:</strong> Multiple cities, vehicle categories, and rental durations
+    <div id="dataStatus" class="data-status">
+      📊 Loading competitor data...
     </div>
 
     <div class="examples">
@@ -135,16 +141,39 @@ Examples:
 
   <script>
     let competitorData = [];
+    let dataSummary = {};
 
     async function loadCompetitorData() {
       try {
         const response = await fetch('competitor_analysis.json');
         competitorData = await response.json();
+        
+        // Generate comprehensive data summary
+        dataSummary = {
+          total_records: competitorData.length,
+          entities: [...new Set(competitorData.map(r => r.Entity))],
+          branch_locations: [...new Set(competitorData.map(r => r['branch location']))],
+          vehicle_groups: [...new Set(competitorData.map(r => r.Vehicle_Group))],
+          rental_durations: [...new Set(competitorData.map(r => r.rental_duration_days))].sort((a,b) => a-b),
+          location_types: [...new Set(competitorData.map(r => r.location_type))],
+          vehicle_models: [...new Set(competitorData.map(r => r.Vehicle_Make_Model))],
+          price_range: {
+            min: Math.min(...competitorData.map(r => r.price_SAR)),
+            max: Math.max(...competitorData.map(r => r.price_SAR)),
+            avg: (competitorData.reduce((sum, r) => sum + r.price_SAR, 0) / competitorData.length).toFixed(2)
+          }
+        };
+
+        // Update status
+        document.getElementById('dataStatus').innerHTML = 
+          `✅ Dataset loaded successfully: ${dataSummary.total_records} records covering ${dataSummary.entities.length} entities across ${dataSummary.branch_locations.length} locations`;
+        
         console.log('Loaded competitor data:', competitorData.length, 'records');
+        console.log('Data summary:', dataSummary);
       } catch (error) {
         console.error('Error loading competitor data:', error);
-        document.getElementById('response').innerHTML = 
-          '<span style="color: red;">Error: Could not load competitor_analysis.json file. Please ensure the file is in the public folder.</span>';
+        document.getElementById('dataStatus').innerHTML = 
+          '<span style="color: red;">❌ Error: Could not load competitor_analysis.json file. Please ensure the file is in the public folder.</span>';
       }
     }
 
@@ -172,26 +201,10 @@ Examples:
       // Disable button and show loading
       button.disabled = true;
       button.textContent = '🔄 Analyzing...';
-      responseElement.innerHTML = '<span class="loading">🤖 AI is analyzing the competitor data...</span>';
+      responseElement.innerHTML = '<span class="loading">🤖 AI is analyzing the complete competitor dataset...</span>';
 
-      // Prepare data summary for the AI - updated to use new column names
-      const dataSummary = {
-        total_records: competitorData.length,
-        entities: [...new Set(competitorData.map(r => r.Entity))],
-        branch_locations: [...new Set(competitorData.map(r => r['branch location']))].slice(0, 10),
-        vehicle_groups: [...new Set(competitorData.map(r => r.Vehicle_Group))],
-        rental_durations: [...new Set(competitorData.map(r => r.rental_duration_days))].sort((a,b) => a-b),
-        location_types: [...new Set(competitorData.map(r => r.location_type))],
-        vehicle_models: [...new Set(competitorData.map(r => r.Vehicle_Make_Model))].slice(0, 15),
-        price_range: {
-          min: Math.min(...competitorData.map(r => r.price_SAR)),
-          max: Math.max(...competitorData.map(r => r.price_SAR)),
-          avg: (competitorData.reduce((sum, r) => sum + r.price_SAR, 0) / competitorData.length).toFixed(2)
-        }
-      };
-
-      // Create comprehensive prompt
-      let prompt = `You are a car rental industry analyst for the Saudi Arabia market.My Entity is Lumi. Analyze this competitor dataset and answer the user's question with specific insights, numbers, and actionable recommendations.
+      // Create comprehensive prompt with FULL dataset
+      let prompt = `You are a car rental industry analyst for the Saudi Arabia market. My Entity is Lumi. Analyze this competitor dataset and answer the user's question with specific insights, numbers, and actionable recommendations.
 
 DATASET OVERVIEW:
 - Total Records: ${dataSummary.total_records}
@@ -200,8 +213,8 @@ DATASET OVERVIEW:
 - Rental Durations: ${dataSummary.rental_durations.join(', ')} days
 - Location Types: ${dataSummary.location_types.join(', ')}
 - Price Range: ${dataSummary.price_range.min} - ${dataSummary.price_range.max} SAR (avg: ${dataSummary.price_range.avg} SAR)
-- Branch Locations: ${dataSummary.branch_locations.join(', ')}
-- Vehicle Models: ${dataSummary.vehicle_models.join(', ')}
+- Total Branch Locations: ${dataSummary.branch_locations.length}
+- Total Vehicle Models: ${dataSummary.vehicle_models.length}
 
 COLUMN STRUCTURE:
 - Entity: Company name (e.g., lumi, theeb, budget saudi)
@@ -209,20 +222,22 @@ COLUMN STRUCTURE:
 - rental_duration_days: Number of rental days
 - location_type: Type of location (e.g., Downtown)
 - Vehicle_Make_Model: Vehicle make and model (e.g., TOYOTA Hiace Passenger Van)
-- Vehicle_Group: Category of vehicle (e.g., Passenger Vehicles)
+- Vehicle_Group: Category of vehicle (e.g., Passenger Vehicles, Electric)
 - price_SAR: Rental price in Saudi Riyals
 
-SAMPLE DATA (first 5 records):
-${JSON.stringify(competitorData.slice(0, 5), null, 2)}
+COMPLETE DATASET (ALL ${dataSummary.total_records} RECORDS):
+${JSON.stringify(competitorData, null, 2)}
 
 USER QUESTION: ${question}
 
 Please provide:
-1. Direct answer with specific numbers/percentages
-2. Key insights and patterns
-3. Competitive positioning analysis
-4. Business recommendations
-5. Use bullet points and clear formatting for readability`;
+1. Direct answer with specific numbers/percentages calculated from the complete dataset
+2. Key insights and patterns identified across all records
+3. Competitive positioning analysis for Lumi vs competitors
+4. Business recommendations based on comprehensive data analysis
+5. Use bullet points and clear formatting for readability
+
+Important: Base your analysis on the COMPLETE dataset above, not just samples. Provide accurate calculations and insights.`;
 
       try {
         const response = await fetch("http://localhost:8080/ask", {
@@ -236,7 +251,7 @@ Please provide:
         }));
 
         if (result.response) {
-          responseElement.innerHTML = `<strong>🎯 Analysis Results:</strong>\n\n${result.response}`;
+          responseElement.innerHTML = `<strong>🎯 Analysis Results (Based on ${dataSummary.total_records} records):</strong>\n\n${result.response}`;
         } else {
           responseElement.innerHTML = `<span style="color: red;">❌ Error: ${result.error || "No response received"}</span>`;
         }
