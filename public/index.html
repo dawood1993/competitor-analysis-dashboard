@@ -58,14 +58,17 @@
     }
     #response { 
       margin-top: 25px; 
-      white-space: pre-wrap; 
       background-color: #f8f9fa;
       padding: 20px;
       border-radius: 8px;
       border-left: 4px solid #3498db;
       min-height: 50px;
-      font-family: 'Courier New', monospace;
-      line-height: 1.6;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      max-height: none;
+      overflow-y: auto;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     #response strong {
       font-weight: bold;
@@ -74,21 +77,6 @@
     .loading {
       color: #3498db;
       font-style: italic;
-    }
-    .dataset-info {
-      background-color: #fff3cd;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      border-left: 4px solid #ffc107;
-    }
-    .data-status {
-      background-color: #d4edda;
-      color: #155724;
-      padding: 10px;
-      border-radius: 5px;
-      margin-bottom: 15px;
-      border-left: 4px solid #28a745;
     }
     .button-group {
       display: flex;
@@ -99,12 +87,8 @@
 </head>
 <body>
   <div class="container">
-    <h1>🚗 Car Rental Competitor Analysis Dashboard</h1>
-    <p class="subtitle">AI-Powered Insights for Saudi Arabia Car Rental Market</p>
-    
-    <div id="dataStatus" class="data-status">
-      📊 Loading competitor data...
-    </div>
+    <h1>🚗 Car Rental(Online) Competitor Analysis</h1>
+    <p class="subtitle">AI-Powered Insights for Saudi Arabia Car Rental Market(Online)</p>
 
     <textarea id="question" placeholder="Ask your question about car rental competitor analysis...
 
@@ -124,72 +108,6 @@ Examples:
   </div>
 
   <script>
-    let competitorData = [];
-    let competitorCSV = '';
-    let dataSummary = {};
-    let lastGeneratedPrompt = '';
-
-    async function loadCompetitorData() {
-      try {
-        // Load as CSV text instead of JSON
-        const response = await fetch('competitor_analysis.csv');
-        competitorCSV = await response.text();
-        
-        // Parse for summary statistics only
-        const lines = competitorCSV.split('\n').filter(line => line.trim());
-        const headers = lines[0].split(',');
-        const dataRows = lines.slice(1);
-        
-        // Parse minimal data for summary
-        competitorData = dataRows.map(row => {
-          const values = row.split(',');
-          const record = {};
-          headers.forEach((header, index) => {
-            record[header.trim()] = values[index]?.trim();
-          });
-          // Convert price to number for calculations
-          if (record.price_SAR) {
-            record.price_SAR = parseFloat(record.price_SAR);
-          }
-          if (record.rental_duration_days) {
-            record.rental_duration_days = parseInt(record.rental_duration_days);
-          }
-          return record;
-        });
-        
-        // Generate summary without full data
-        dataSummary = {
-          total_records: competitorData.length,
-          entities: [...new Set(competitorData.map(r => r.Entity))],
-          branch_locations: [...new Set(competitorData.map(r => r['branch location']))],
-          vehicle_groups: [...new Set(competitorData.map(r => r.Vehicle_Group))],
-          rental_durations: [...new Set(competitorData.map(r => r.rental_duration_days))].sort((a,b) => a-b),
-          location_types: [...new Set(competitorData.map(r => r.location_type))],
-          vehicle_models: [...new Set(competitorData.map(r => r.Vehicle_Make_Model))],
-          price_range: {
-            min: Math.min(...competitorData.map(r => r.price_SAR)),
-            max: Math.max(...competitorData.map(r => r.price_SAR)),
-            avg: (competitorData.reduce((sum, r) => sum + r.price_SAR, 0) / competitorData.length).toFixed(2)
-          }
-        };
-
-        // Update status
-        document.getElementById('dataStatus').innerHTML = 
-          `✅ Dataset loaded successfully: ${dataSummary.total_records} records covering ${dataSummary.entities.length} entities across ${dataSummary.branch_locations.length} locations`;
-        
-        console.log('Loaded competitor CSV data:', dataSummary.total_records, 'records');
-        console.log('CSV size:', competitorCSV.length, 'characters');
-      } catch (error) {
-        console.error('Error loading competitor data:', error);
-        document.getElementById('dataStatus').innerHTML = 
-          '<span style="color: red;">❌ Error: Could not load competitor_analysis.csv file. Please ensure the file is in the public folder.</span>';
-      }
-    }
-
-    function generatePrompt(question) {
-      return `${question}`;
-    }
-
     async function askGPT() {
       const questionElement = document.getElementById('question');
       const responseElement = document.getElementById('response');
@@ -202,38 +120,18 @@ Examples:
         return;
       }
 
-      if (!competitorCSV || competitorCSV.length === 0) {
-        responseElement.innerHTML = '<span style="color: red;">Competitor data not loaded. Please refresh the page.</span>';
-        return;
-      }
-
       // Disable button and show loading
       button.disabled = true;
       button.textContent = '🔄 Analyzing...';
-      responseElement.innerHTML = '<span class="loading">🤖 AI is analyzing the complete competitor dataset...</span>';
+      responseElement.innerHTML = '<span class="loading">🤖 AI is analyzing the competitor dataset...</span>';
 
-      // Generate the prompt
-      const prompt = generatePrompt(question);
-      lastGeneratedPrompt = prompt;
-
-      const promptSize = prompt.length;
-      const estimatedTokens = Math.ceil(promptSize / 3.5); // Rough estimate: 1 token ≈ 3.5 characters
-      
-      console.log(`Sending CSV dataset with ${dataSummary.total_records} records to AI`);
-      console.log(`Prompt size: ${promptSize} characters (~${estimatedTokens} tokens)`);
-
-      if (estimatedTokens > 800000) { // Conservative limit
-        responseElement.innerHTML = `<span style="color: orange;">⚠️ Warning: Dataset may be too large (${estimatedTokens} estimated tokens). Consider using a smaller subset or different analysis approach.</span>`;
-        button.disabled = false;
-        button.textContent = '🔍 Analyze Data';
-        return;
-      }
+      console.log('Sending question to AI:', question);
 
       try {
         const response = await fetch("http://localhost:8080/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt })
+          body: JSON.stringify({ prompt: question })
         });
 
         const result = await response.json().catch(() => ({ 
@@ -242,14 +140,14 @@ Examples:
 
         if (result.response) {
           const formattedResponse = formatAIResponse(result.response);
-          responseElement.innerHTML = `<strong>🎯 Complete Analysis Results (Based on ALL ${dataSummary.total_records} records):</strong>\n\n${formattedResponse}`;
+          responseElement.innerHTML = `<div style="font-weight: bold; font-size: 1.1em; color: #2c3e50; margin-bottom: 15px; padding: 10px; background: #e8f4fd; border-radius: 5px;">🎯 Analysis Results:</div>${formattedResponse}`;
         } else {
           responseElement.innerHTML = `<span style="color: red;">❌ Error: ${result.error || "No response received"}</span>`;
         }
 
       } catch (error) {
         console.error('Request failed:', error);
-        responseElement.innerHTML = `<span style="color: red;">❌ Connection Error: ${error.message}\n\nThis might be due to token limits. Consider breaking down your analysis into smaller segments.</span>`;
+        responseElement.innerHTML = `<span style="color: red;">❌ Connection Error: ${error.message}</span>`;
       } finally {
         // Re-enable button
         button.disabled = false;
@@ -258,29 +156,59 @@ Examples:
     }
 
     function formatAIResponse(text) {
-      // Handle all markdown-style formatting while preserving line breaks
-      return text
-        // Convert **text** to <strong>text</strong>
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        // Convert ### Headers to styled headers
-        .replace(/^### (.+)$/gm, '<span style="font-weight: bold; font-size: 1.1em; color: #2c3e50; display: block; margin: 15px 0 8px 0;">$1</span>')
-        // Convert ## Headers to styled headers
-        .replace(/^## (.+)$/gm, '<span style="font-weight: bold; font-size: 1.2em; color: #2c3e50; display: block; margin: 15px 0 8px 0;">$1</span>')
-        // Convert # Headers to styled headers
-        .replace(/^# (.+)$/gm, '<span style="font-weight: bold; font-size: 1.3em; color: #2c3e50; display: block; margin: 15px 0 10px 0;">$1</span>')
-        // Convert --- horizontal rules to styled dividers
-        .replace(/^---$/gm, '<div style="border-top: 2px solid #ddd; margin: 15px 0;"></div>')
-        // Convert bullet points starting with - to styled bullets
-        .replace(/^- (.+)$/gm, '• $1')
-        // Convert numbered lists
-        .replace(/^\d+\. (.+)$/gm, function(match, p1, offset, string) {
-          const lineNumber = (string.substring(0, offset).match(/^\d+\. /gm) || []).length + 1;
-          return lineNumber + '. ' + p1;
-        });
+      // Split text into lines for better processing
+      let lines = text.split('\n');
+      let formattedLines = [];
+      
+      for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].trim();
+        
+        if (!line) {
+          // Empty line - add spacing
+          formattedLines.push('<div style="height: 15px;"></div>');
+          continue;
+        }
+        
+        // Headers
+        if (line.startsWith('### ')) {
+          formattedLines.push(`<div style="font-weight: bold; font-size: 1.1em; color: #2c3e50; margin: 25px 0 15px 0; padding: 8px 0; border-bottom: 2px solid #ecf0f1;">${line.substring(4)}</div>`);
+        } else if (line.startsWith('## ')) {
+          formattedLines.push(`<div style="font-weight: bold; font-size: 1.2em; color: #2c3e50; margin: 30px 0 18px 0; padding: 10px 0; border-bottom: 2px solid #3498db;">${line.substring(3)}</div>`);
+        } else if (line.startsWith('# ')) {
+          formattedLines.push(`<div style="font-weight: bold; font-size: 1.4em; color: #2c3e50; margin: 35px 0 20px 0; padding: 12px 0; border-bottom: 3px solid #2c3e50;">${line.substring(2)}</div>`);
+        }
+        // Numbered lists
+        else if (/^\d+\.\s/.test(line)) {
+          const match = line.match(/^(\d+)\.\s(.+)$/);
+          if (match) {
+            formattedLines.push(`<div style="margin: 8px 0; padding: 8px 0; padding-left: 30px; position: relative; line-height: 1.7;"><span style="position: absolute; left: 0; color: #3498db; font-weight: bold;">${match[1]}.</span> ${match[2].replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`);
+          }
+        }
+        // Bullet points
+        else if (line.startsWith('- ') || line.startsWith('• ')) {
+          const content = line.substring(2);
+          formattedLines.push(`<div style="margin: 8px 0; padding: 8px 0; padding-left: 25px; position: relative; line-height: 1.7;"><span style="position: absolute; left: 0; color: #3498db; font-weight: bold;">•</span> ${content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`);
+        }
+        // Horizontal rules
+        else if (line === '---') {
+          formattedLines.push('<div style="border-top: 2px solid #ddd; margin: 25px 0;"></div>');
+        }
+        // Regular paragraphs
+        else {
+          const formattedLine = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+          formattedLines.push(`<div style="margin: 12px 0; line-height: 1.7; text-align: justify;">${formattedLine}</div>`);
+        }
+      }
+      
+      return formattedLines.join('');
     }
 
-    // Load data when page loads
-    loadCompetitorData();
+    // Enable Enter key to submit
+    document.getElementById('question').addEventListener('keydown', function(event) {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        askGPT();
+      }
+    });
   </script>
 </body>
 </html>
