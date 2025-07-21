@@ -28,7 +28,8 @@ app.post('/ask', async (req, res) => {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "mistralai/mistral-7b-instruct",
+      // model: "mistralai/mistral-7b-instruct",
+      model: "openai/gpt-4.1",
       max_tokens: 1000,
       messages: [{ role: "user", content: prompt }],
     });
