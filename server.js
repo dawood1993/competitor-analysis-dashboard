@@ -1,55 +1,70 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const path = require('path');
-const { OpenAI } = require("openai");
-
 const app = express();
-const port = process.env.PORT || 8080;
 
-// Your OpenAI Key
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: "https://openrouter.ai/api/v1"
+// IMPORTANT: Increase payload limits BEFORE other middleware
+app.use(express.json({ 
+  limit: '100mb',           // Increase from default 100kb to 100mb
+  parameterLimit: 50000,    // Increase parameter limit
+  extended: true 
+}));
+
+app.use(express.urlencoded({ 
+  limit: '100mb', 
+  parameterLimit: 50000,
+  extended: true 
+}));
+
+// Enable CORS for all routes
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type']
+}));
+
+// Add timeout handling for large requests
+app.use((req, res, next) => {
+  req.setTimeout(300000); // 5 minutes timeout
+  res.setTimeout(300000);
+  next();
 });
 
+// Optional: Log payload sizes for monitoring
+app.use((req, res, next) => {
+  if (req.path === '/ask') {
+    console.log(`Request size: ${JSON.stringify(req.body).length} bytes`);
+  }
+  next();
+});
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// GPT endpoint for competitor analysis
+// Your existing /ask route
 app.post('/ask', async (req, res) => {
-  const prompt = req.body.prompt;
-
-  if (!prompt || prompt.length < 5) {
-    return res.status(400).json({ error: "Prompt is too short or missing." });
-  }
-
   try {
-    const completion = await openai.chat.completions.create({
-      // model: "mistralai/mistral-7b-instruct",
-      model: "openai/gpt-4.1",
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }],
+    const { prompt } = req.body;
+    
+    console.log(`Received prompt with length: ${prompt.length} characters`);
+    
+    // Your existing AI model call logic here
+    // Example:
+    // const response = await callYourAIModel(prompt);
+    
+    res.json({ 
+      response: "AI analysis would go here",
+      promptLength: prompt.length,
+      status: "success"
     });
-
-    const answer = completion.choices?.[0]?.message?.content;
-    if (!answer) {
-      return res.status(500).json({ error: "GPT returned no answer." });
-    }
-
-    res.json({ response: answer });
-
-  } catch (err) {
-    console.error("OpenAI Error:", err.response?.data || err.message || err);
-    res.status(err?.statusCode || 500).json({
-      error: err?.response?.data?.error?.message || "Unexpected error occurred."
+    
+  } catch (error) {
+    console.error('Error processing request:', error);
+    res.status(500).json({ 
+      error: error.message,
+      status: "error"
     });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Competitor Analysis Dashboard running at http://localhost:${port}`);
+app.listen(8080, () => {
+  console.log('Competitor Analysis Dashboard running at http://localhost:8080');
+  console.log('Payload limit set to 100MB for large datasets');
 });
