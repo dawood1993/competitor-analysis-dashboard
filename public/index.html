@@ -275,7 +275,7 @@
       console.log('Sending question to AI:', question);
 
       try {
-        const response = await fetch("http://localhost:8080/ask", {
+        const response = await fetch("/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: question })
